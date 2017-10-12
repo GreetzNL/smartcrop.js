@@ -166,11 +166,11 @@ function edgeDetect(i, o) {
   var w = i.width;
   var h = i.height;
 
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      var p = (y * w + x) * 4;
-      var lightness;
+  var y, x, p, lightness;
 
+  for (y = 0; y < h; y++) {
+    for (x = 0; x < w; x++) {
+      p = (y * w + x) * 4;
       if (x === 0 || x >= w - 1 || y === 0 || y >= h - 1) {
         lightness = sample(id, p);
       }
@@ -181,7 +181,6 @@ function edgeDetect(i, o) {
             sample(id, p + 4) -
             sample(id, p + w * 4);
       }
-
       od[p + 1] = lightness;
     }
   }
@@ -192,14 +191,15 @@ function skinDetect(options, i, o) {
   var od = o.data;
   var w = i.width;
   var h = i.height;
+  var x, y, p, lightness, skin, isSkinColor, isSkinBrightness;
 
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      var p = (y * w + x) * 4;
-      var lightness = cie(id[p], id[p + 1], id[p + 2]) / 255;
-      var skin = skinColor(options, id[p], id[p + 1], id[p + 2]);
-      var isSkinColor = skin > options.skinThreshold;
-      var isSkinBrightness = lightness >= options.skinBrightnessMin && lightness <= options.skinBrightnessMax;
+  for (y = 0; y < h; y++) {
+    for (x = 0; x < w; x++) {
+      p = (y * w + x) * 4;
+      lightness = cie(id[p], id[p + 1], id[p + 2]) / 255;
+      skin = skinColor(options, id[p], id[p + 1], id[p + 2]);
+      isSkinColor = skin > options.skinThreshold;
+      isSkinBrightness = lightness >= options.skinBrightnessMin && lightness <= options.skinBrightnessMax;
       if (isSkinColor && isSkinBrightness) {
         od[p] = (skin - options.skinThreshold) * (255 / (1 - options.skinThreshold));
       }
@@ -215,18 +215,21 @@ function saturationDetect(options, i, o) {
   var od = o.data;
   var w = i.width;
   var h = i.height;
-  for (var y = 0; y < h; y++) {
-    for (var x = 0; x < w; x++) {
-      var p = (y * w + x) * 4;
+  var saturationBrightnessMin = options.saturationBrightnessMin;
+  var saturationBrightnessMax = options.saturationBrightnessMax;
+  var saturationThreshold = options.saturationThreshold;
 
-      var lightness = cie(id[p], id[p + 1], id[p + 2]) / 255;
-      var sat = saturation(id[p], id[p + 1], id[p + 2]);
+  var x, y, p, lightness, sat, acceptableLightness;
 
-      var acceptableSaturation = sat > options.saturationThreshold;
-      var acceptableLightness = lightness >= options.saturationBrightnessMin &&
-          lightness <= options.saturationBrightnessMax;
+  for (y = 0; y < h; y++) {
+    for (x = 0; x < w; x++) {
+      p = (y * w + x) * 4;
+      lightness = cie(id[p], id[p + 1], id[p + 2]) / 255;
+      sat = saturation(id[p], id[p + 1], id[p + 2]);
+      acceptableLightness = lightness >= saturationBrightnessMin &&
+          lightness <= saturationBrightnessMax;
       if (acceptableLightness && acceptableLightness) {
-        od[p + 2] = (sat - options.saturationThreshold) * (255 / (1 - options.saturationThreshold));
+        od[p + 2] = (sat - saturationThreshold) * (255 / (1 - saturationThreshold));
       }
       else {
         od[p + 2] = 0;
@@ -237,8 +240,8 @@ function saturationDetect(options, i, o) {
 
 function applyBoosts(options, output) {
   if (!options.boost) return;
-  var od = output.data;
-  for (var i = 0; i < output.width; i += 4) {
+  var od = output.data, i;
+  for (i = 0; i < output.width; i += 4) {
     od[i + 3] = 0;
   }
   for (i = 0; i < options.boost.length; i++) {
@@ -254,9 +257,10 @@ function applyBoost(boost, options, output) {
   var y0 = ~~boost.y;
   var y1 = ~~(boost.y + boost.height);
   var weight = boost.weight * 255;
-  for (var y = y0; y < y1; y++) {
-    for (var x = x0; x < x1; x++) {
-      var i = (y * w + x) * 4;
+  var x, y, i;
+  for (y = y0; y < y1; y++) {
+    for (x = x0; x < x1; x++) {
+      i = (y * w + x) * 4;
       od[i + 3] += weight;
     }
   }
@@ -267,9 +271,12 @@ function generateCrops(options, width, height) {
   var minDimension = min(width, height);
   var cropWidth = options.cropWidth || minDimension;
   var cropHeight = options.cropHeight || minDimension;
-  for (var scale = options.maxScale; scale >= options.minScale; scale -= options.scaleStep) {
-    for (var y = 0; y + cropHeight * scale <= height; y += options.step) {
-      for (var x = 0; x + cropWidth * scale <= width; x += options.step) {
+
+  var x, y, scale;
+
+  for (scale = options.maxScale; scale >= options.minScale; scale -= options.scaleStep) {
+    for (y = 0; y + cropHeight * scale <= height; y += options.step) {
+      for (x = 0; x + cropWidth * scale <= width; x += options.step) {
         results.push({
           x: x,
           y: y,
@@ -298,12 +305,13 @@ function score(options, output, crop) {
   var outputWidthDownSample = output.width * downSample;
   var outputWidth = output.width;
 
-  for (var y = 0; y < outputHeightDownSample; y += downSample) {
-    for (var x = 0; x < outputWidthDownSample; x += downSample) {
-      var p = (~~(y * invDownSample) * outputWidth + ~~(x * invDownSample)) * 4;
-      var i = importance(options, crop, x, y);
-      var detail = od[p + 1] / 255;
+  var x, y, p, i, detail;
 
+  for (y = 0; y < outputHeightDownSample; y += downSample) {
+    for (x = 0; x < outputWidthDownSample; x += downSample) {
+      p = (~~(y * invDownSample) * outputWidth + ~~(x * invDownSample)) * 4;
+      i = importance(options, crop, x, y);
+      detail = od[p + 1] / 255;
       result.skin += od[p] / 255 * (detail + options.skinBias) * i;
       result.detail += detail * i;
       result.saturation += od[p + 2] / 255 * (detail + options.saturationBias) * i;
@@ -362,8 +370,10 @@ function analyse(options, input) {
   var topCrop = null;
   var crops = generateCrops(options, input.width, input.height);
 
-  for (var i = 0, iLen = crops.length; i < iLen; i++) {
-    var crop = crops[i];
+  var i, crop, iLen = crops.length;
+
+  for (i = 0; i < iLen; i++) {
+    crop = crops[i];
     crop.score = score(options, scoreOutput, crop);
     if (crop.score.total > topScore) {
       topCrop = crop;
@@ -404,29 +414,29 @@ function downSample(input, factor) {
   var output = new ImgData(width, height);
   var data = output.data;
   var ifactor2 = 1 / (factor * factor);
-  for (var y = 0; y < height; y++) {
-    for (var x = 0; x < width; x++) {
-      var i = (y * width + x) * 4;
+  var x, y, i, r, g, b, a, mr, mg, mb, v, u, j;
 
-      var r = 0;
-      var g = 0;
-      var b = 0;
-      var a = 0;
 
-      var mr = 0;
-      var mg = 0;
-      var mb = 0;
-
-      for (var v = 0; v < factor; v++) {
-        for (var u = 0; u < factor; u++) {
-          var j = ((y * factor + v) * iwidth + (x * factor + u)) * 4;
+  for (y = 0; y < height; y++) {
+    for (x = 0; x < width; x++) {
+      i = (y * width + x) * 4;
+      r = 0;
+      g = 0;
+      b = 0;
+      a = 0;
+      mr = 0;
+      mg = 0;
+      mb = 0;
+      for (v = 0; v < factor; v++) {
+        for (u = 0; u < factor; u++) {
+          j = ((y * factor + v) * iwidth + (x * factor + u)) * 4;
           r += idata[j];
           g += idata[j + 1];
           b += idata[j + 2];
           a += idata[j + 3];
-          mr = Math.max(mr, idata[j]);
-          mg = Math.max(mg, idata[j + 1]);
-          mb = Math.max(mb, idata[j + 2]);
+          mr = max(mr, idata[j]);
+          mg = max(mg, idata[j + 1]);
+          mb = max(mb, idata[j + 2]);
         }
       }
       // this is some funky magic to preserve detail a bit more for
