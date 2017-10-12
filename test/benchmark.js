@@ -1,5 +1,5 @@
 (function(){
-var KITTY = '/examples/images/flickr/kitty.jpg',
+var KITTY = 'kitty.jpg',
     raw = $('#raw'),
     status = $('#status');
 
